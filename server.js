@@ -36,6 +36,9 @@ const botState = {
 // Mot de passe pour accéder (changeable dans .env)
 const ACCESS_PASSWORD = process.env.WEBAPP_PASSWORD || 'sniper123';
 
+// Debug: afficher le mot de passe au démarrage
+console.log('🔐 MOT DE PASSE ACTUEL:', ACCESS_PASSWORD);
+
 // Auth simple
 app.post('/api/auth', async (req, res) => {
   const { password } = req.body;
