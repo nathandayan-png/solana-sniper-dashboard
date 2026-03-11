@@ -141,13 +141,64 @@ app.post('/api/positions/:id/close', (req, res) => {
 
 // WebSocket: Connexion client
 io.on('connection', (socket) => {
-  console.log('Client connecté:', socket.id);
+  console.log('✅ Client connecté:', socket.id);
   
   // Envoyer l'état initial
   socket.emit('initial-state', botState);
   
+  // Handler: Événements du bot
+  socket.on('event', (event) => {
+    console.log('📥 Événement reçu:', event.type);
+    
+    // Ajouter à l'historique
+    botState.recentEvents.push(event);
+    
+    // Limiter à 100 événements max
+    if (botState.recentEvents.length > 100) {
+      botState.recentEvents.shift();
+    }
+    
+    // Broadcast à tous les clients connectés
+    io.emit('event', event);
+  });
+  
+  // Handler: Status du bot
+  socket.on('bot-status', (data) => {
+    console.log('📥 Status bot:', data.running);
+    botState.running = data.running;
+    io.emit('bot-status', data);
+  });
+  
+  // Handler: Mise à jour position
+  socket.on('position-update', (position) => {
+    console.log('📥 Position mise à jour:', position.symbol);
+    
+    const index = botState.positions.findIndex(p => p.id === position.id);
+    if (index >= 0) {
+      botState.positions[index] = position;
+    } else {
+      botState.positions.push(position);
+    }
+    
+    io.emit('position-update', position);
+  });
+  
+  // Handler: Stats
+  socket.on('stats-update', (stats) => {
+    console.log('📥 Stats mises à jour');
+    botState.stats = { ...botState.stats, ...stats };
+    io.emit('stats-update', botState.stats);
+  });
+  
+  // Handler: Wallet
+  socket.on('wallet-update', (data) => {
+    console.log('📥 Wallet mis à jour:', data.balance);
+    botState.walletBalance = data.balance;
+    io.emit('wallet-update', data);
+  });
+  
   socket.on('disconnect', () => {
-    console.log('Client déconnecté:', socket.id);
+    console.log('⚠️  Client déconnecté:', socket.id);
   });
 });
 
