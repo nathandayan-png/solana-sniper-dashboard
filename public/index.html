@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solana Sniper Bot - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
+    .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+  </style>
+</head>
+<body class="bg-gray-900 text-white">
+  
+  <!-- Login Screen -->
+  <div id="login-screen" class="min-h-screen flex items-center justify-center gradient-bg">
+    <div class="glass p-8 rounded-2xl shadow-2xl w-full max-w-md">
+      <h1 class="text-3xl font-bold mb-6 text-center">🚀 Solana Sniper Bot</h1>
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-2">Mot de passe</label>
+          <input 
+            type="password" 
+            id="password-input"
+            class="w-full px-4 py-3 rounded-lg bg-white/20 border border-white/30 focus:outline-none focus:ring-2 focus:ring-purple-400"
+            placeholder="Entrez le mot de passe"
+            required
+          />
+        </div>
+        <button 
+          type="submit"
+          class="w-full py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold transition"
+        >
+          Se connecter
+        </button>
+        <p id="login-error" class="text-red-300 text-sm text-center hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div id="dashboard" class="hidden">
+    
+    <!-- Header -->
+    <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <h1 class="text-2xl font-bold">🚀 Solana Sniper</h1>
+          <span id="bot-status" class="px-3 py-1 rounded-full text-sm font-medium bg-gray-700">
+            ⏸️ Arrêté
+          </span>
+        </div>
+        <div class="flex items-center space-x-4">
+          <div class="text-right">
+            <div class="text-sm text-gray-400">Balance</div>
+            <div id="wallet-balance" class="text-xl font-bold">0.0000 SOL</div>
+          </div>
+          <button onclick="logout()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition">
+            Déconnexion
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="p-6 space-y-6">
+      
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+          <div class="text-gray-400 text-sm mb-2">Total Trades</div>
+          <div id="stat-total-trades" class="text-3xl font-bold">0</div>
+        </div>
+        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+          <div class="text-gray-400 text-sm mb-2">Win Rate</div>
+          <div id="stat-win-rate" class="text-3xl font-bold text-green-400">0%</div>
+        </div>
+        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+          <div class="text-gray-400 text-sm mb-2">P&L Total</div>
+          <div id="stat-pnl" class="text-3xl font-bold">0 SOL</div>
+        </div>
+        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+          <div class="text-gray-400 text-sm mb-2">Positions Ouvertes</div>
+          <div id="stat-open-positions" class="text-3xl font-bold text-blue-400">0</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+        <h2 class="text-xl font-bold mb-4">🎛️ Contrôles</h2>
+        <div class="flex space-x-4">
+          <button onclick="controlBot('start')" class="flex-1 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition">
+            ▶️ Démarrer
+          </button>
+          <button onclick="controlBot('stop')" class="flex-1 py-3 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition">
+            ⏸️ Arrêter
+          </button>
+          <button onclick="controlBot('restart')" class="flex-1 py-3 bg-yellow-600 hover:bg-yellow-700 rounded-lg font-semibold transition">
+            🔄 Redémarrer
+          </button>
+        </div>
+      </div>
+
+      <!-- Positions -->
+      <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+        <h2 class="text-xl font-bold mb-4">💰 Positions</h2>
+        <div id="positions-container" class="space-y-3">
+          <p class="text-gray-400 text-center py-8">Aucune position pour le moment...</p>
+        </div>
+      </div>
+
+      <!-- Recent Events -->
+      <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+        <h2 class="text-xl font-bold mb-4">🔔 Événements Récents</h2>
+        <div id="events-container" class="space-y-2 max-h-96 overflow-y-auto">
+          <p class="text-gray-400 text-center py-8">En attente d'événements...</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // État global
+    let socket = null;
+    let authenticated = false;
+
+    // Login
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = document.getElementById('password-input').value;
+      
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          authenticated = true;
+          document.getElementById('login-screen').classList.add('hidden');
+          document.getElementById('dashboard').classList.remove('hidden');
+          initDashboard();
+        } else {
+          const errorEl = document.getElementById('login-error');
+          errorEl.textContent = 'Mot de passe incorrect';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (error) {
+        alert('Erreur de connexion au serveur');
+      }
+    });
+
+    // Logout
+    function logout() {
+      authenticated = false;
+      if (socket) socket.disconnect();
+      document.getElementById('dashboard').classList.add('hidden');
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('password-input').value = '';
+    }
+
+    // Init dashboard
+    function initDashboard() {
+      // WebSocket
+      socket = io();
+      
+      socket.on('initial-state', (state) => {
+        updateStats(state.stats);
+        updatePositions(state.positions);
+        updateEvents(state.recentEvents);
+        updateBotStatus(state.running);
+        updateWalletBalance(state.walletBalance);
+      });
+      
+      socket.on('bot-status', (data) => {
+        updateBotStatus(data.running);
+      });
+      
+      socket.on('stats-update', updateStats);
+      socket.on('position-update', updateSinglePosition);
+      socket.on('event', addEvent);
+      socket.on('wallet-update', (data) => updateWalletBalance(data.balance));
+      
+      // Load initial data
+      loadData();
+    }
+
+    // Load data
+    async function loadData() {
+      try {
+        const [status, stats, positions, events] = await Promise.all([
+          fetch('/api/status').then(r => r.json()),
+          fetch('/api/stats').then(r => r.json()),
+          fetch('/api/positions').then(r => r.json()),
+          fetch('/api/events').then(r => r.json())
+        ]);
+        
+        updateBotStatus(status.running);
+        updateWalletBalance(status.balance);
+        updateStats(stats);
+        updatePositions(positions);
+        updateEvents(events);
+      } catch (error) {
+        console.error('Erreur chargement données:', error);
+      }
+    }
+
+    // Update functions
+    function updateBotStatus(running) {
+      const statusEl = document.getElementById('bot-status');
+      if (running) {
+        statusEl.innerHTML = '✅ En cours';
+        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-green-600 pulse';
+      } else {
+        statusEl.innerHTML = '⏸️ Arrêté';
+        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-gray-700';
+      }
+    }
+
+    function updateWalletBalance(balance) {
+      document.getElementById('wallet-balance').textContent = `${balance.toFixed(4)} SOL`;
+    }
+
+    function updateStats(stats) {
+      document.getElementById('stat-total-trades').textContent = stats.totalTrades || 0;
+      document.getElementById('stat-win-rate').textContent = `${(stats.winRate || 0).toFixed(1)}%`;
+      
+      const pnlEl = document.getElementById('stat-pnl');
+      const pnl = stats.totalPnL || 0;
+      pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(4)} SOL`;
+      pnlEl.className = `text-3xl font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`;
+    }
+
+    function updatePositions(positions) {
+      const container = document.getElementById('positions-container');
+      const openPositions = positions.filter(p => p.status === 'OPEN' || p.status === 'PARTIAL');
+      
+      document.getElementById('stat-open-positions').textContent = openPositions.length;
+      
+      if (openPositions.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center py-8">Aucune position ouverte</p>';
+        return;
+      }
+      
+      container.innerHTML = openPositions.map(p => `
+        <div class="bg-gray-700 p-4 rounded-lg flex items-center justify-between">
+          <div class="flex-1">
+            <div class="font-bold text-lg">${p.symbol}</div>
+            <div class="text-sm text-gray-400">${p.tokenAddress.substring(0, 8)}...</div>
+          </div>
+          <div class="text-right flex-1">
+            <div class="text-sm text-gray-400">P&L</div>
+            <div class="text-xl font-bold ${p.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}">
+              ${p.profitLoss >= 0 ? '+' : ''}${p.profitLoss.toFixed(2)}%
+            </div>
+          </div>
+          <div class="text-right flex-1">
+            <div class="text-sm text-gray-400">Valeur</div>
+            <div class="font-semibold">${p.currentValue.toFixed(4)} SOL</div>
+          </div>
+          <button 
+            onclick="closePosition('${p.id}')"
+            class="ml-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm transition"
+          >
+            Fermer
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function updateSinglePosition(position) {
+      // Reload all positions for simplicity
+      fetch('/api/positions').then(r => r.json()).then(updatePositions);
+    }
+
+    function updateEvents(events) {
+      const container = document.getElementById('events-container');
+      
+      if (events.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center py-8">En attente d\'événements...</p>';
+        return;
+      }
+      
+      container.innerHTML = events.reverse().map(e => {
+        const time = new Date(e.timestamp).toLocaleTimeString();
+        const emoji = getEventEmoji(e.type);
+        return `
+          <div class="bg-gray-700 p-3 rounded-lg text-sm">
+            <span class="font-semibold">${time}</span> ${emoji} ${e.type}
+            ${e.data ? `<div class="text-gray-400 mt-1">${JSON.stringify(e.data).substring(0, 100)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addEvent(event) {
+      // Add to top and reload
+      fetch('/api/events').then(r => r.json()).then(updateEvents);
+    }
+
+    function getEventEmoji(type) {
+      const map = {
+        'NEW_TOKEN': '🆕',
+        'BUY': '💰',
+        'SELL': '💸',
+        'TAKE_PROFIT': '🎯',
+        'STOP_LOSS': '🛑',
+        'ERROR': '❌'
+      };
+      return map[type] || '📝';
+    }
+
+    // Control functions
+    async function controlBot(action) {
+      try {
+        const res = await fetch(`/api/control/${action}`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.success) {
+          alert(data.message);
+        } else {
+          alert('Erreur: ' + data.error);
+        }
+      } catch (error) {
+        alert('Erreur de communication avec le bot');
+      }
+    }
+
+    async function closePosition(id) {
+      if (!confirm('Fermer cette position manuellement ?')) return;
+      
+      try {
+        const res = await fetch(`/api/positions/${id}/close`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.success) {
+          alert('Position fermée');
+          loadData();
+        } else {
+          alert('Erreur: ' + data.error);
+        }
+      } catch (error) {
+        alert('Erreur lors de la fermeture');
+      }
+    }
+
+    // Auto-refresh every 5 seconds
+    setInterval(() => {
+      if (authenticated) loadData();
+    }, 5000);
+  </script>
+
+</body>
+</html>
