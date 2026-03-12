@@ -191,6 +191,13 @@ io.on('connection', (socket) => {
   });
   
   // Handler: Wallet
+  // Handler: Positions (array)
+  socket.on("positions-update", (data) => {
+    console.log("📥 Positions mises à jour:", data.positions.length);
+    botState.positions = data.positions || [];
+    io.emit("positions-update", data);
+  });
+
   socket.on('wallet-update', (data) => {
     console.log('📥 Wallet mis à jour:', data.balance);
     botState.walletBalance = data.balance;
